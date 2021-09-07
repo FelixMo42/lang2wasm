@@ -9,9 +9,7 @@
 </head>
 <body>
     <script>
-        WebAssembly.instantiateStreaming(fetch("main.wasm")).then(mod => {
-            console.log( mod.instance.exports.add(4, 10) )
-        })
+        WebAssembly.instantiateStreaming(fetch("main.wasm")).then(mod => console.log( mod.instance.exports.main() ))
     </script>
 </body>
 </html>
