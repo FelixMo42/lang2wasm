@@ -5,9 +5,9 @@ pub struct Param {
     pub kind: Kind,
 }
 
-impl Param {
-    pub fn to_string(&self) -> String {
-        return format!("(param ${} {})", self.name, self.kind.to_string())
+impl std::fmt::Display for Param {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        return write!(f, "(param ${} {})", self.name, self.kind)
     }
 }
 
@@ -20,13 +20,13 @@ pub struct Function {
     pub body: Value
 }
 
-impl Function {
-    pub fn to_string(&self) -> String {
-        return format!("(func ${} {} (result {}) {})",
+impl std::fmt::Display for Function {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        return write!(f, "(func ${} {} (result {}) {})",
             self.name,
             self.params.iter().map(|param| param.to_string()).collect::<Vec<String>>().join(" "),
-            self.result.to_string(),
-            self.body.to_string(),
+            self.result,
+            self.body,
         );
     }
 }
