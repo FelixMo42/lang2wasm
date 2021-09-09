@@ -4,6 +4,8 @@ pub enum Value {
     Call(String, Vec<Value>),
     If(Box<Value>, Box<Value>, Box<Value>),
 
+    Tuple(Vec<Value>),
+
     // Consts
     Number(i32),
 
@@ -25,6 +27,13 @@ impl std::fmt::Display for Value {
                     .join(" ")
             ),
             Value::If(cond, a, b) => write!(f, "(if (result i32) {} (then {}) (else {}))", cond, a, b),
+
+            Value::Tuple(values) => write!(f, "{}",
+                values.iter()
+                    .map(|arg| arg.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
 
             // Const
             Value::Number(value) => write!(f, "(i32.const {})", value),
