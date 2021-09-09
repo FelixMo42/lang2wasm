@@ -1,22 +1,25 @@
 use crate::node::*;
 use crate::lexer::*;
+use crate::scope::Scope;
 
 pub fn parse(src: &str) -> Vec<Function> {
     let mut funcs = vec![];
     let lexer = &mut Lexer::new(src);
 
-    while let Some(func) = eat_func(lexer) {
+    let global_scope = &Scope::new(vec! []);
+
+    while let Some(func) = eat_func(lexer, global_scope) {
         funcs.push(func);
     }
 
     return funcs;
 }
 
-fn eat_name(toks: &mut Lexer) -> Option<String> {
-    return toks.next_tokn().map(|name| name.to_string());
+fn eat_name<'a>(toks: &mut Lexer<'a>, _scope: &Scope) -> Option<&'a str> {
+    return toks.next_tokn();
 }
 
-fn eat_number(toks: &mut Lexer) -> Option<i32> {
+fn eat_number(toks: &mut Lexer, _scope: &Scope) -> Option<i32> {
     toks.next_tokn_map_if(|tokn|
         if let Ok(num) = tokn.parse::<i32>() {
             Some(num)
@@ -26,7 +29,7 @@ fn eat_number(toks: &mut Lexer) -> Option<i32> {
     )
 }
 
-fn eat_paran_list<T>(toks: &mut Lexer, func: impl Fn(&mut Lexer) -> Option<T>) -> Option<Vec<T>> {
+fn eat_paran_list<'a, T>(toks: &mut Lexer<'a>, func: impl Fn(&mut Lexer<'a>) -> Option<T>) -> Option<Vec<T>> {
     if toks.next_tokn_if(|tok| tok == "(").is_some() {
         let mut values = vec! [];
 
@@ -40,21 +43,21 @@ fn eat_paran_list<T>(toks: &mut Lexer, func: impl Fn(&mut Lexer) -> Option<T>) -
     return None;
 }
 
-fn eat_value_part(toks: &mut Lexer) -> Option<Value> {
-    if let Some(tuple) = eat_paran_list(toks, |toks| eat_value(toks)) {
+fn eat_value_part<'a>(toks: &mut Lexer<'a>, scope: &Scope<'a>) -> Option<Value<'a>> {
+    if let Some(tuple) = eat_paran_list(toks, |toks| eat_value(toks, scope)) {
         return Some(Value::Tuple(tuple));
     }
 
-    if let Some(number) = eat_number(toks) {
+    if let Some(number) = eat_number(toks, scope) {
         return Some(Value::Number(number));
     }
 
-    if let Some(name) = eat_name(toks) {
+    if let Some(name) = eat_name(toks, scope) {
         // If Statment
         if name == "if" {
-            if let Some(cond) = eat_value(toks) {
-                if let Some(a) = eat_value(toks) {
-                    if let Some(b) = eat_value(toks) {
+            if let Some(cond) = eat_value(toks, scope) {
+                if let Some(a) = eat_value(toks, scope) {
+                    if let Some(b) = eat_value(toks, scope) {
                         return Some(Value::If(Box::new(cond), Box::new(a), Box::new(b)));
                     }
                 }
@@ -62,21 +65,25 @@ fn eat_value_part(toks: &mut Lexer) -> Option<Value> {
         }
 
         // Function
-        if let Some(args) = eat_paran_list(toks, |toks| eat_value(toks)) {
+        if let Some(args) = eat_paran_list(toks, |toks| eat_value(toks, scope)) {
             return Some(Value::Call(name, args));
         }
 
         // Get a variable
-        return Some(Value::Get(name));
+        if let Some(variable) = scope.get(name) {
+            return Some(Value::LocalVariable(variable.get_id()));
+        } else {
+            println!("cant find varriable {}", name);
+        }
     }
 
     return None;
 }
 
-fn eat_value(toks: &mut Lexer) -> Option<Value> {
-    if let Some(a) = eat_value_part(toks) {
+fn eat_value<'a>(toks: &mut Lexer<'a>, scope: &Scope<'a>) -> Option<Value<'a>> {
+    if let Some(a) = eat_value_part(toks, scope) {
         if let Some(op) = toks.next_tokn_if(|tok| tok == "*" || tok == "+" || tok == "-" || tok == "==") {
-            if let Some(b) = eat_value_part(toks) {
+            if let Some(b) = eat_value_part(toks, scope) {
                 return Some(match op {
                     // Build the operators.
                     "*"  => Value::Mul( Box::new(a), Box::new(b) ),
@@ -96,8 +103,8 @@ fn eat_value(toks: &mut Lexer) -> Option<Value> {
     return None;
 }
 
-fn eat_kind(toks: &mut Lexer) -> Option<Kind> {
-    if let Some(list) = eat_paran_list(toks, |toks| eat_kind(toks)) {
+fn eat_kind(toks: &mut Lexer, scope: &Scope) -> Option<Kind> {
+    if let Some(list) = eat_paran_list(toks, |toks| eat_kind(toks, scope)) {
         return Some( Kind::Join(list) );
     }
 
@@ -111,9 +118,9 @@ fn eat_kind(toks: &mut Lexer) -> Option<Kind> {
     )
 }
 
-fn eat_param(toks: &mut Lexer) -> Option<Param> {
-    if let Some(name) = eat_name(toks) {
-        if let Some(kind) = eat_kind(toks) {
+fn eat_param<'a>(toks: &mut Lexer<'a>, scope: &Scope<'a>) -> Option<Param<'a>> {
+    if let Some(name) = eat_name(toks, scope) {
+        if let Some(kind) = eat_kind(toks, scope) {
             return Some(Param { name, kind });
         }
     }
@@ -121,17 +128,18 @@ fn eat_param(toks: &mut Lexer) -> Option<Param> {
     return None;
 }
 
-fn eat_func(toks: &mut Lexer) -> Option<Function> {
-    if let Some(name) = eat_name(toks) {
-        if let Some(params) = eat_paran_list(toks, |toks| eat_param(toks)) {
-            if let Some(result) = eat_kind(toks) {
-                if let Some(body) = eat_value(toks) {
+fn eat_func<'a>(toks: &mut Lexer<'a>, scope: &Scope<'a>) -> Option<Function<'a>> {
+    if let Some(name) = eat_name(toks, scope) {
+        if let Some(params) = eat_paran_list(toks, |toks| eat_param(toks, scope)) {
+            if let Some(result) = eat_kind(toks, scope) {
+                let func_scope = scope.add_function_params(&params);
+                if let Some(body) = eat_value(toks, &func_scope) {
                     return Some(Function {
                         name,
                         params,
                         result,
                         body,
-                    })
+                    });
                 }
             }
         }

@@ -1,11 +1,11 @@
 use crate::node::*;
 
-pub struct Param {
-    pub name: String,
+pub struct Param<'a> {
+    pub name: &'a str,
     pub kind: Kind,
 }
 
-impl std::fmt::Display for Param {
+impl std::fmt::Display for Param<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         return write!(f, "{}", self.kind)
     }
@@ -13,14 +13,14 @@ impl std::fmt::Display for Param {
 
 //
 
-pub struct Function {
-    pub name: String,
-    pub params: Vec<Param>,
+pub struct Function<'a> {
+    pub name: &'a str,
+    pub params: Vec<Param<'a>>,
     pub result: Kind,
-    pub body: Value
+    pub body: Value<'a>
 }
 
-impl std::fmt::Display for Function {
+impl std::fmt::Display for Function<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         return write!(f, "(func ${} (param {}) (result {}) {})",
             self.name,
